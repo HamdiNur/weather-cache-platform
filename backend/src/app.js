@@ -38,7 +38,7 @@ app.get("/api/health", (req, res) => {
 
 // We'll uncomment/add these one at a time as we build each feature:
 app.use("/api/auth", require("./routes/auth.routes"));
-// app.use("/api/weather", require("./routes/weather.routes"));
+app.use("/api/weather", require("./routes/weather.routes"));
 // app.use("/api/favorites", require("./routes/favorite.routes"));
 // app.use("/api/history", require("./routes/history.routes"));
 
