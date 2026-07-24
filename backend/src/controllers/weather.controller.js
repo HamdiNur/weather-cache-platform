@@ -1,8 +1,7 @@
 const { fetchWeatherForCity } = require("../services/weather.service");
+const { getCachedWeather, setCachedWeather } = require("../services/redis.service");
 const { successResponse, errorResponse } = require("../utils/response");
 
-// NOTE: No Redis caching yet — this hits the real Open-Meteo API every time.
-// Step 4 will wrap this with cache-aside logic (check Redis first, etc.)
 async function getWeather(req, res) {
   try {
     const { city } = req.query;
@@ -12,12 +11,31 @@ async function getWeather(req, res) {
     }
 
     const startTime = Date.now();
-    const weatherData = await fetchWeatherForCity(city);
-    const responseTime = Date.now() - startTime;
 
+    // ---------- Cache-aside pattern ----------
+    // 1. Check Redis first
+    const cached = await getCachedWeather(city);
+
+    if (cached) {
+      const responseTime = Date.now() - startTime;
+      return successResponse(res, 200, "Weather data fetched successfully", {
+        ...cached,
+        cache: "HIT",
+        responseTimeMs: responseTime,
+      });
+    }
+
+    // 2. Not cached -> fetch fresh from the real API
+    const weatherData = await fetchWeatherForCity(city);
+
+    // 3. Store it in Redis for next time (fire and forget is fine here,
+    //    but we await it to guarantee it's saved before responding)
+    await setCachedWeather(city, weatherData);
+
+    const responseTime = Date.now() - startTime;
     return successResponse(res, 200, "Weather data fetched successfully", {
       ...weatherData,
-      cache: "MISS", // hardcoded for now — becomes real in Step 4
+      cache: "MISS",
       responseTimeMs: responseTime,
     });
   } catch (err) {
