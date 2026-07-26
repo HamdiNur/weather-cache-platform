@@ -1,6 +1,28 @@
 const { fetchWeatherForCity } = require("../services/weather.service");
 const { getCachedWeather, setCachedWeather } = require("../services/redis.service");
 const { successResponse, errorResponse } = require("../utils/response");
+const { verifyToken } = require("../utils/jwt");
+const pool = require("../config/db");
+
+// Logs a search into Postgres, but only if we can identify a logged-in user.
+// This never throws — a logging failure should never break the weather response.
+async function logSearchIfAuthenticated(req, city) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return;
+
+    const token = authHeader.split(" ")[1];
+    const decoded = verifyToken(token);
+
+    await pool.query(
+      "INSERT INTO search_history (user_id, city) VALUES ($1, $2)",
+      [decoded.id, city]
+    );
+  } catch (err) {
+    // Invalid/expired token, or DB hiccup — silently skip logging.
+    // A guest or a logging failure should never break the weather search itself.
+  }
+}
 
 async function getWeather(req, res) {
   try {
@@ -13,11 +35,14 @@ async function getWeather(req, res) {
     const startTime = Date.now();
 
     // ---------- Cache-aside pattern ----------
-    // 1. Check Redis first
     const cached = await getCachedWeather(city);
 
     if (cached) {
       const responseTime = Date.now() - startTime;
+
+      // Log history in the background — don't make the user wait for it
+      logSearchIfAuthenticated(req, city);
+
       return successResponse(res, 200, "Weather data fetched successfully", {
         ...cached,
         cache: "HIT",
@@ -25,14 +50,13 @@ async function getWeather(req, res) {
       });
     }
 
-    // 2. Not cached -> fetch fresh from the real API
     const weatherData = await fetchWeatherForCity(city);
-
-    // 3. Store it in Redis for next time (fire and forget is fine here,
-    //    but we await it to guarantee it's saved before responding)
     await setCachedWeather(city, weatherData);
 
     const responseTime = Date.now() - startTime;
+
+    logSearchIfAuthenticated(req, city);
+
     return successResponse(res, 200, "Weather data fetched successfully", {
       ...weatherData,
       cache: "MISS",
