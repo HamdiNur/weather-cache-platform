@@ -1,31 +1,44 @@
 import { useState, useEffect } from "react";
+import { Navigate } from "react-router-dom";
 import api from "../services/api";
 import FavoriteCities from "../components/FavoriteCities";
-import Loader from "../components/Loader";
 import { useAuth } from "../context/AuthContext";
-import { Navigate } from "react-router-dom";
+import { Star } from "lucide-react";
 
 function Favorites() {
   const { user } = useAuth();
   const [favorites, setFavorites] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (user) {
-      fetchFavorites();
+      loadFavorites();
     }
   }, [user]);
 
-  async function fetchFavorites() {
-    setLoading(true);
+  async function loadFavorites() {
     try {
       const response = await api.get("/favorites");
-      setFavorites(response.data.data);
+      const baseFavorites = response.data.data;
+
+      // Show cards immediately in a loading state...
+      setFavorites(baseFavorites.map((f) => ({ ...f, loading: true })));
+
+      // ...then fetch live weather for each one in parallel (fast thanks to Redis cache)
+      const withWeather = await Promise.all(
+        baseFavorites.map(async (fav) => {
+          try {
+            const res = await api.get("/weather", { params: { city: fav.city } });
+            return { ...fav, weather: res.data.data, loading: false };
+          } catch {
+            return { ...fav, weather: null, loading: false };
+          }
+        })
+      );
+
+      setFavorites(withWeather);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load favorites");
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -38,20 +51,20 @@ function Favorites() {
     }
   }
 
-  // Guests shouldn't see this page at all — redirect to login
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold text-center text-gray-800 mb-6">
-        ⭐ Your Favorite Cities
-      </h1>
+    <div className="px-4 py-12 max-w-2xl mx-auto">
+      <div className="flex items-center gap-2 mb-5">
+        <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
+        <h1 className="font-display text-2xl font-bold text-white">Your Favorite Cities</h1>
+      </div>
 
-      {loading && <Loader />}
-      {error && <p className="text-center text-red-600">{error}</p>}
-      {!loading && <FavoriteCities favorites={favorites} onRemove={handleRemove} />}
+      {error && <p className="text-center text-white bg-red-500/80 rounded-full py-2 text-sm mb-4">{error}</p>}
+
+      <FavoriteCities favorites={favorites} onRemove={handleRemove} />
     </div>
   );
 }
