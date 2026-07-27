@@ -1,6 +1,21 @@
 import { useState } from "react";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { Droplets, Wind, Gauge, Star } from "lucide-react";
+
+function getWeatherEmoji(description = "") {
+  const d = description.toLowerCase();
+  if (d.includes("clear sky")) return "☀️";
+  if (d.includes("mainly clear")) return "🌤️";
+  if (d.includes("partly")) return "⛅";
+  if (d.includes("overcast")) return "☁️";
+  if (d.includes("fog")) return "🌫️";
+  if (d.includes("drizzle")) return "🌦️";
+  if (d.includes("rain") || d.includes("shower")) return "🌧️";
+  if (d.includes("snow")) return "❄️";
+  if (d.includes("thunder")) return "⛈️";
+  return "🌡️";
+}
 
 function WeatherCard({ weather }) {
   const { user } = useAuth();
@@ -10,17 +25,8 @@ function WeatherCard({ weather }) {
   if (!weather) return null;
 
   const {
-    city,
-    country,
-    temperature,
-    feelsLike,
-    description,
-    humidity,
-    windSpeed,
-    pressure,
-    localTime,
-    cache,
-    responseTimeMs,
+    city, country, temperature, feelsLike, description,
+    humidity, windSpeed, pressure, localTime, cache, responseTimeMs,
   } = weather;
 
   const isHit = cache === "HIT";
@@ -31,64 +37,67 @@ function WeatherCard({ weather }) {
       await api.post("/favorites", { city, country });
       setSaved(true);
     } catch (err) {
-      // If already favorited (409), still show it as saved — not a real error to the user
-      if (err.response?.status === 409) {
-        setSaved(true);
-      }
+      if (err.response?.status === 409) setSaved(true);
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6 max-w-md w-full mx-auto mt-6">
-      <div
-        className={`text-sm font-semibold px-3 py-1 rounded-full inline-block mb-4 ${
-          isHit ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
-        }`}
-      >
-        {isHit ? "Cache Hit ✅" : "Cache Miss ❌"} · {responseTimeMs} ms
-      </div>
-
-      <div className="flex justify-between items-start">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">
-            {city}, {country}
-          </h2>
-          <p className="text-gray-500 mb-4">{localTime}</p>
-        </div>
+<div className="glass-card rounded-3xl p-8 max-w-md w-full mx-auto shadow-xl shadow-black/10">
+      <div className="flex items-center justify-between mb-6">
+        <span
+          className={`text-xs font-semibold px-3 py-1.5 rounded-full ${
+            isHit ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+          }`}
+        >
+          {isHit ? "⚡ Cache Hit" : "🌐 Cache Miss"} · {responseTimeMs}ms
+        </span>
 
         {user && (
           <button
             onClick={handleAddFavorite}
             disabled={saving || saved}
-            className="text-2xl disabled:opacity-40"
+            className="text-slate-400 hover:text-amber-500 disabled:opacity-60 transition-colors"
             title={saved ? "Saved to favorites" : "Add to favorites"}
           >
-            {saved ? "⭐" : "☆"}
+            <Star className={`w-6 h-6 ${saved ? "fill-amber-400 text-amber-400" : ""}`} />
           </button>
         )}
       </div>
 
-      <div className="text-5xl font-bold text-blue-600 mb-1">
-        {Math.round(temperature)}°C
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="font-display text-2xl font-bold text-slate-900">{city}</h2>
+          <p className="text-slate-500 text-sm">{country} · {localTime}</p>
+        </div>
+        <span className="text-5xl leading-none">{getWeatherEmoji(description)}</span>
       </div>
-      <p className="text-gray-600 mb-4">
-        Feels like {Math.round(feelsLike)}°C · {description}
-      </p>
 
-      <div className="grid grid-cols-3 gap-4 text-center border-t pt-4">
-        <div>
-          <p className="text-gray-400 text-sm">Humidity</p>
-          <p className="font-semibold">{humidity}%</p>
+      <div className="mt-4 flex items-baseline gap-2">
+        <span className="font-display text-6xl font-extrabold text-slate-900">
+          {Math.round(temperature)}°
+        </span>
+        <span className="text-slate-500 text-sm">
+          Feels like {Math.round(feelsLike)}° · {description}
+        </span>
+      </div>
+
+      <div className="mt-6 grid grid-cols-3 gap-3 border-t border-slate-200/70 pt-5">
+        <div className="flex flex-col items-center gap-1">
+          <Droplets className="w-4 h-4 text-sky-500" />
+          <span className="text-sm font-semibold text-slate-800">{humidity}%</span>
+          <span className="text-xs text-slate-400">Humidity</span>
         </div>
-        <div>
-          <p className="text-gray-400 text-sm">Wind</p>
-          <p className="font-semibold">{windSpeed} km/h</p>
+        <div className="flex flex-col items-center gap-1">
+          <Wind className="w-4 h-4 text-sky-500" />
+          <span className="text-sm font-semibold text-slate-800">{windSpeed} km/h</span>
+          <span className="text-xs text-slate-400">Wind</span>
         </div>
-        <div>
-          <p className="text-gray-400 text-sm">Pressure</p>
-          <p className="font-semibold">{pressure} hPa</p>
+        <div className="flex flex-col items-center gap-1">
+          <Gauge className="w-4 h-4 text-sky-500" />
+          <span className="text-sm font-semibold text-slate-800">{pressure} hPa</span>
+          <span className="text-xs text-slate-400">Pressure</span>
         </div>
       </div>
     </div>
