@@ -1,11 +1,14 @@
 const { fetchWeatherForCity } = require("../services/weather.service");
-const { getCachedWeather, setCachedWeather } = require("../services/redis.service");
+const {
+  getCachedWeather,
+  setCachedWeather,
+  trackPopularCity,
+  trackRecentSearch,
+} = require("../services/redis.service");
 const { successResponse, errorResponse } = require("../utils/response");
 const { verifyToken } = require("../utils/jwt");
 const pool = require("../config/db");
 
-// Logs a search into Postgres, but only if we can identify a logged-in user.
-// This never throws — a logging failure should never break the weather response.
 async function logSearchIfAuthenticated(req, city) {
   try {
     const authHeader = req.headers.authorization;
@@ -19,8 +22,18 @@ async function logSearchIfAuthenticated(req, city) {
       [decoded.id, city]
     );
   } catch (err) {
-    // Invalid/expired token, or DB hiccup — silently skip logging.
-    // A guest or a logging failure should never break the weather search itself.
+    // Silently skip — invalid token or DB hiccup should never break the search
+  }
+}
+
+// Tracks the search in Redis for popular cities + recent searches.
+// Runs for EVERY search, guest or logged-in — these are global, not per-user.
+async function trackSearchGlobally(city) {
+  try {
+    await trackPopularCity(city);
+    await trackRecentSearch(city);
+  } catch (err) {
+    console.error("Failed to track search:", err.message);
   }
 }
 
@@ -34,14 +47,13 @@ async function getWeather(req, res) {
 
     const startTime = Date.now();
 
-    // ---------- Cache-aside pattern ----------
     const cached = await getCachedWeather(city);
 
     if (cached) {
       const responseTime = Date.now() - startTime;
 
-      // Log history in the background — don't make the user wait for it
       logSearchIfAuthenticated(req, city);
+      trackSearchGlobally(city);
 
       return successResponse(res, 200, "Weather data fetched successfully", {
         ...cached,
@@ -56,6 +68,7 @@ async function getWeather(req, res) {
     const responseTime = Date.now() - startTime;
 
     logSearchIfAuthenticated(req, city);
+    trackSearchGlobally(city);
 
     return successResponse(res, 200, "Weather data fetched successfully", {
       ...weatherData,

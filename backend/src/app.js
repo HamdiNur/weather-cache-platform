@@ -41,6 +41,8 @@ app.use("/api/auth", require("./routes/auth.routes"));
 app.use("/api/weather", require("./routes/weather.routes"));
 app.use("/api/favorites", require("./routes/favorite.routes"));
 app.use("/api/history", require("./routes/history.routes"));
+app.use("/api/popular", require("./routes/popular.routes"));
+app.use("/api/recent", require("./routes/recent.routes"));
 
 // ---------- 404 Handler ----------
 // Catches any request that didn't match a route above
