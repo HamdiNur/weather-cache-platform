@@ -124,7 +124,7 @@ Every push to `main` triggers `.github/workflows/ci.yml`, which:
 - Spins up real Postgres + Redis containers
 - Applies `schema.sql` to a fresh database
 - Boots the actual Express server and hits `/api/health`
-- Installs and builds the frontend with Vite
+- Installs and builds the frontend with Vite.
 
 ## 📚 What This Project Demonstrates
 
